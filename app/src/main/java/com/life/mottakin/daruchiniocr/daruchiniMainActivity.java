@@ -7,9 +7,11 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.StrictMode;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -34,6 +36,9 @@ public class daruchiniMainActivity extends AppCompatActivity {
     }
 
     public void takePhoto() {
+
+        // Checking permission and letting the user to allowed
+
         if(ContextCompat.checkSelfPermission(this,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
             doOperation();
@@ -53,6 +58,7 @@ public class daruchiniMainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if(requestCode == REQUEST_EXTERNAL_STORAGE_RESULT) {
             if(grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission given
                 doOperation();
             } else {
                 Toast.makeText(this,
@@ -72,7 +78,21 @@ public class daruchiniMainActivity extends AppCompatActivity {
             public void onClick(View view) {
                 Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 File file = getFileInfo();
-                cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(file));
+
+                /*
+                Faced problems saving the image.
+                Consulted: https://stackoverflow.com/questions/38200282/android-os-fileuriexposedexception-file-storage-emulated-0-test-txt-exposed
+                */
+
+                /* The following two lines work for solving the above mentioned problem but
+                stackoverflow suggested to use File Provider
+                StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder();
+                StrictMode.setVmPolicy(builder.build());
+                 */
+                Uri photoURI = FileProvider.getUriForFile(daruchiniMainActivity.this,
+                        BuildConfig.APPLICATION_ID + ".provider",
+                        file);
+                cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
                 startActivityForResult(cameraIntent,REQUEST_IMAGE_CAPTURE);
             }
         });
@@ -104,6 +124,8 @@ public class daruchiniMainActivity extends AppCompatActivity {
         File daruchiniDirectory=new File(root+"/daruchini-ocr");
 
         if(!daruchiniDirectory.exists()) daruchiniDirectory.mkdirs();
+
+        System.out.println("here: "+daruchiniDirectory.getName());
 
         File image = new File(daruchiniDirectory,"test.png");
         return image;

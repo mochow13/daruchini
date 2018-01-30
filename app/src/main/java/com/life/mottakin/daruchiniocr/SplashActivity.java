@@ -24,11 +24,7 @@ public class SplashActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_splash);
 
-//        try {
-//            sleep(3000);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
+        // Running the launcher screen for some seconds
 
         new Handler().postDelayed(new Runnable(){
             @Override
