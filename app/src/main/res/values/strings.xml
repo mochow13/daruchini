@@ -5,4 +5,7 @@
     <string name="opencamera">openCamera</string>
     <string name="opengallery">openGallery</string>
     <string name="daruchini_logo_test">daruchini-logo-test</string>
+    <string name="showimage">showImage</string>
+    <string name="send">Send</string>
+    <string name="scan">Scan</string>
 </resources>
