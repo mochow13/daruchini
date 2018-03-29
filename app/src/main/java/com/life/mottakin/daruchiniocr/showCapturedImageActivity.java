@@ -15,6 +15,14 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageView;
 
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.imgproc.Imgproc;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -28,10 +36,45 @@ import java.net.URL;
 
 public class showCapturedImageActivity extends AppCompatActivity {
 
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+
+            switch(status) {
+                case LoaderCallbackInterface.SUCCESS:
+                {
+                    Log.d("OpenCV:","OpenCV loaded successfully *sigh*");
+                }
+                break;
+                default:
+                {
+                    super.onManagerConnected(status);
+                }
+                break;
+            }
+
+            super.onManagerConnected(status);
+        }
+    };
+
+    ImageView imageView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // We need to check if OpenCV is initiated
+        // Reference: https://stackoverflow.com/questions/35090838/no-implementation-found-for-long-org-opencv-core-mat-n-mat-error-using-opencv
+
+        if (!OpenCVLoader.initDebug()) {
+            Log.d("OpenCV", "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
+        } else {
+            Log.d("OpenCV", "OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        }
+
+        // Go full screen to show the image
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -39,7 +82,7 @@ public class showCapturedImageActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_show_captured_image);
 
-        ImageView imageView = (ImageView) findViewById(R.id.showImage);
+        imageView = findViewById(R.id.showImage);
         Intent currIntent = getIntent();
 
         if(currIntent.hasExtra("imageFilename")) {
@@ -54,8 +97,16 @@ public class showCapturedImageActivity extends AppCompatActivity {
             final Bitmap imageToShow = BitmapFactory.decodeFile(file.getAbsolutePath());
             System.out.println(imageToShow.getByteCount());
 
-            // Ba-dum-tsss
+            // Ba-dum-tsss show image
             imageView.setImageBitmap(imageToShow);
+
+            Button scanButton = findViewById(R.id.scanButton);
+            scanButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    scanImage(imageToShow);
+                }
+            });
 
 //            Button sendButton = findViewById(R.id.sendButton);
 //            sendButton.setOnClickListener(new View.OnClickListener() {
@@ -127,5 +178,36 @@ public class showCapturedImageActivity extends AppCompatActivity {
 
         mainHandler.post(myRunnable);
         finish();
+    }
+
+    private void scanImage(final Bitmap imageToScan) {
+
+        Log.d("scanImage:","Filtering...");
+
+        Mat inputMat = new Mat(imageToScan.getHeight(), imageToScan.getWidth(), CvType.CV_8U);
+        Mat outputMat = new Mat(imageToScan.getHeight(), imageToScan.getWidth(), CvType.CV_8U);
+
+        Utils.bitmapToMat(imageToScan,inputMat);
+        Imgproc.cvtColor(inputMat,inputMat,Imgproc.COLOR_RGB2GRAY);
+
+        Log.d("scanImage:", "Thresholding...");
+
+        // The blocksize will always have to be odd
+        // Reference: https://stackoverflow.com/questions/27268636/assertion-failed-blocksize-2-1-blocksize-1-in-cvadaptivethreshold
+
+        // Penciled writing does not seem to be well suited for this adaptive thresholding
+        // The last to parameters are influential a lot
+        // Not at all sure about this library thresholding
+
+        Imgproc.adaptiveThreshold(inputMat,outputMat,255,Imgproc.ADAPTIVE_THRESH_MEAN_C,Imgproc.THRESH_BINARY,15,10);
+        Utils.matToBitmap(outputMat,imageToScan);
+
+        Log.d("scanImage:", "Thresholding done.");
+
+        imageView.setImageBitmap(imageToScan);
+
+        // TODO: Show this scanned image with only one button to save, probably in a new activity
+        // TODO: Add functionality to save the scanned image
+        // TODO: Try Wolf/Sauvola binarization
     }
 }
