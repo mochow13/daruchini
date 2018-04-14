@@ -3,11 +3,12 @@ package com.life.mottakin.daruchiniocr;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -15,20 +16,18 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageView;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.request.RequestOptions;
+
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
-import org.opencv.android.Utils;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
-import org.opencv.imgproc.Imgproc;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -57,7 +56,12 @@ public class showCapturedImageActivity extends AppCompatActivity {
         }
     };
 
+    // To show image in an efficient way, instead of doing all the hassles
+    // I am just using Glide - a library recommended by Google
+    // Reference: https://github.com/bumptech/glide
+
     ImageView imageView;
+    Bitmap imageToScan;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,7 +87,10 @@ public class showCapturedImageActivity extends AppCompatActivity {
         setContentView(R.layout.activity_show_captured_image);
 
         imageView = findViewById(R.id.showImage);
-        Intent currIntent = getIntent();
+        final Intent currIntent = getIntent();
+
+        // Sending the activity reference to the imageProcessor
+        final imageProcessor ip = new imageProcessor(this);
 
         if(currIntent.hasExtra("imageFilename")) {
             String filename = currIntent.getExtras().getString("imageFilename");
@@ -92,19 +99,34 @@ public class showCapturedImageActivity extends AppCompatActivity {
             String root= Environment.getExternalStorageDirectory().toString()+"/daruchini-ocr/";
             File file = new File(root+filename);
 
-            System.out.println(file.length());
+            // Without skipMemoryCache and diskCacheStrategy, loads previous image
+            // These options are important for Glide's performance
 
-            final Bitmap imageToShow = BitmapFactory.decodeFile(file.getAbsolutePath());
-            System.out.println(imageToShow.getByteCount());
+            Glide.with(showCapturedImageActivity.this)
+                    .load(Uri.fromFile(file))
+                    .apply(new RequestOptions()
+                    .skipMemoryCache(true)
+                    .diskCacheStrategy(DiskCacheStrategy.NONE))
+                    .into(imageView);
 
-            // Ba-dum-tsss show image
-            imageView.setImageBitmap(imageToShow);
+            imageToScan = BitmapFactory.decodeFile(file.getAbsolutePath());
+
+            // TODO: This size reduction is probably skipping frames - separate thread?
+
+            int x = (int)(imageToScan.getWidth()*0.5);
+            int y = (int)(imageToScan.getHeight()*0.5);
+
+            System.out.println("Previous bitmap size: "+"("+imageToScan.getHeight()+","+imageToScan.getWidth()+")");
+
+            imageToScan = Bitmap.createScaledBitmap(imageToScan,x,y,true);
+
+            System.out.println("New bitmap size: "+"("+imageToScan.getWidth()+","+imageToScan.getHeight()+")");
 
             Button scanButton = findViewById(R.id.scanButton);
             scanButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    scanImage(imageToShow);
+                    ip.execute(imageToScan);
                 }
             });
 
@@ -118,7 +140,7 @@ public class showCapturedImageActivity extends AppCompatActivity {
 //                    // The alternate is HttpURLConnection - https://developer.android.com/reference/java/net/HttpURLConnection.html
 //                    // But actually, I have to use Volley
 //
-////                    sendFile(imageToShow);
+////                    sendFile(imageToScan);
 //                }
 //            });
         }
@@ -180,34 +202,9 @@ public class showCapturedImageActivity extends AppCompatActivity {
         finish();
     }
 
-    private void scanImage(final Bitmap imageToScan) {
-
-        Log.d("scanImage:","Filtering...");
-
-        Mat inputMat = new Mat(imageToScan.getHeight(), imageToScan.getWidth(), CvType.CV_8U);
-        Mat outputMat = new Mat(imageToScan.getHeight(), imageToScan.getWidth(), CvType.CV_8U);
-
-        Utils.bitmapToMat(imageToScan,inputMat);
-        Imgproc.cvtColor(inputMat,inputMat,Imgproc.COLOR_RGB2GRAY);
-
-        Log.d("scanImage:", "Thresholding...");
-
-        // The blocksize will always have to be odd
-        // Reference: https://stackoverflow.com/questions/27268636/assertion-failed-blocksize-2-1-blocksize-1-in-cvadaptivethreshold
-
-        // Penciled writing does not seem to be well suited for this adaptive thresholding
-        // The last to parameters are influential a lot
-        // Not at all sure about this library thresholding
-
-        Imgproc.adaptiveThreshold(inputMat,outputMat,255,Imgproc.ADAPTIVE_THRESH_MEAN_C,Imgproc.THRESH_BINARY,15,10);
-        Utils.matToBitmap(outputMat,imageToScan);
-
-        Log.d("scanImage:", "Thresholding done.");
-
-        imageView.setImageBitmap(imageToScan);
-
-        // TODO: Show this scanned image with only one button to save, probably in a new activity
-        // TODO: Add functionality to save the scanned image
-        // TODO: Try Wolf/Sauvola binarization
-    }
+    // TODO: Show this scanned image with only one button to save, probably in a new activity
+    // TODO: Add functionality to save the scanned image
+    // TODO: Not sure if I should keep OpenCV if Catalano works - looks like it is working
+    // TODO: Need to check and tune parameter for Thresholding - not quite sure how they are working
+    // TODO: Try other thresholding techniques
 }
