@@ -3,24 +3,20 @@ package com.life.mottakin.daruchiniocr;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Environment;
-import android.os.StrictMode;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
 import java.io.File;
-
-import static java.lang.Thread.sleep;
 
 public class daruchiniMainActivity extends AppCompatActivity {
 
@@ -79,16 +75,13 @@ public class daruchiniMainActivity extends AppCompatActivity {
                 Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 File file = getFileInfo();
 
-                /*
-                Faced problems saving the image.
-                Consulted: https://stackoverflow.com/questions/38200282/android-os-fileuriexposedexception-file-storage-emulated-0-test-txt-exposed
-                */
+//                Faced problems saving the image.
+//                Consulted: https://stackoverflow.com/questions/38200282/android-os-fileuriexposedexception-file-storage-emulated-0-test-txt-exposed
+//                The following two lines work for solving the above mentioned problem but
+//                stackoverflow suggested to use File Provider
+//                StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder();
+//                StrictMode.setVmPolicy(builder.build());
 
-                /* The following two lines work for solving the above mentioned problem but
-                stackoverflow suggested to use File Provider
-                StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder();
-                StrictMode.setVmPolicy(builder.build());
-                 */
                 Uri photoURI = FileProvider.getUriForFile(daruchiniMainActivity.this,
                         BuildConfig.APPLICATION_ID + ".provider",
                         file);

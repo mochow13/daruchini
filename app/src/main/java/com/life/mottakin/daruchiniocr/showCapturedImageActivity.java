@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -29,6 +30,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -56,12 +58,16 @@ public class showCapturedImageActivity extends AppCompatActivity {
         }
     };
 
-    // To show image in an efficient way, instead of doing all the hassles
+    // To show image in an efficient way, instead of going through the hassles
     // I am just using Glide - a library recommended by Google
     // Reference: https://github.com/bumptech/glide
 
     ImageView imageView;
+    Button scanButton;
     Bitmap imageToScan;
+
+    final int maxWidth = 1206;
+    final int maxHeight = 1504;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,15 +95,14 @@ public class showCapturedImageActivity extends AppCompatActivity {
         imageView = findViewById(R.id.showImage);
         final Intent currIntent = getIntent();
 
-        // Sending the activity reference to the imageProcessor
-        final imageProcessor ip = new imageProcessor(this);
-
         if(currIntent.hasExtra("imageFilename")) {
             String filename = currIntent.getExtras().getString("imageFilename");
             System.out.println(filename);
 
-            String root= Environment.getExternalStorageDirectory().toString()+"/daruchini-ocr/";
-            File file = new File(root+filename);
+            String root = Environment.getExternalStorageDirectory().toString()+"/daruchini-ocr/";
+            final File file = new File(root+filename);
+
+            scanButton = findViewById(R.id.scanButton);
 
             // Without skipMemoryCache and diskCacheStrategy, loads previous image
             // These options are important for Glide's performance
@@ -109,41 +114,19 @@ public class showCapturedImageActivity extends AppCompatActivity {
                     .diskCacheStrategy(DiskCacheStrategy.NONE))
                     .into(imageView);
 
-            imageToScan = BitmapFactory.decodeFile(file.getAbsolutePath());
-
-            // TODO: This size reduction is probably skipping frames - separate thread?
-
-            int x = (int)(imageToScan.getWidth()*0.5);
-            int y = (int)(imageToScan.getHeight()*0.5);
-
-            System.out.println("Previous bitmap size: "+"("+imageToScan.getHeight()+","+imageToScan.getWidth()+")");
-
-            imageToScan = Bitmap.createScaledBitmap(imageToScan,x,y,true);
-
-            System.out.println("New bitmap size: "+"("+imageToScan.getWidth()+","+imageToScan.getHeight()+")");
-
-            Button scanButton = findViewById(R.id.scanButton);
-            scanButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    ip.execute(imageToScan);
-                }
-            });
-
-//            Button sendButton = findViewById(R.id.sendButton);
-//            sendButton.setOnClickListener(new View.OnClickListener() {
-//                @Override
-//                public void onClick(View view) {
-//
-//                    // Reference: https://stackoverflow.com/questions/20322528/uploading-images-to-server-android
-//                    // HttpClient mentioned in the link is removed from Android 6.0 onwards
-//                    // The alternate is HttpURLConnection - https://developer.android.com/reference/java/net/HttpURLConnection.html
-//                    // But actually, I have to use Volley
-//
-////                    sendFile(imageToScan);
-//                }
-//            });
+            new RescaleImage(this).execute(root+filename);
         }
+    }
+
+    private void doScanning() {
+        // Sending the activity reference to the imageProcessor
+        final imageProcessor ip = new imageProcessor(this);
+        scanButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ip.execute(imageToScan);
+            }
+        });
     }
 
     private void sendFile(final Bitmap imageToShow) {
@@ -200,6 +183,50 @@ public class showCapturedImageActivity extends AppCompatActivity {
 
         mainHandler.post(myRunnable);
         finish();
+    }
+
+    private class RescaleImage extends AsyncTask <String,Void,Void> {
+
+        WeakReference<showCapturedImageActivity> weakActivityReference;
+
+        RescaleImage(showCapturedImageActivity weakActivityReference) {
+            this.weakActivityReference = new WeakReference<>(weakActivityReference);
+        }
+
+        @Override
+        protected Void doInBackground(String... strings) {
+
+            File file = new File(strings[0]);
+            imageToScan = BitmapFactory.decodeFile(file.getAbsolutePath());
+
+            int width = imageToScan.getWidth();
+            int height = imageToScan.getHeight();
+
+            float ratioBitmap = (float)width/(float)height;
+            float ratioMax = (float)maxWidth/(float)maxHeight;
+
+            int finalWidth = maxWidth;
+            int finalHeight = maxHeight;
+
+            if(ratioMax>ratioBitmap) {
+                finalWidth = (int)((float)maxHeight*ratioBitmap);
+            }
+            else {
+                finalHeight = (int)((float)maxWidth/ratioBitmap);
+            }
+
+            imageToScan = Bitmap.createScaledBitmap(imageToScan,finalWidth,finalHeight,true);
+
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void params) {
+
+            super.onPostExecute(params);
+            showCapturedImageActivity sc = weakActivityReference.get();
+            sc.doScanning();
+        }
     }
 
     // TODO: Show this scanned image with only one button to save, probably in a new activity
