@@ -1,2 +1,2 @@
 ### daruchini
-The coffee is good, so is the chicken-grill.
+An attempt to build a Bengali OCR with Google Tesseract 4.00
